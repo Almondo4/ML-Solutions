@@ -1,0 +1,132 @@
+
+from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_selection import SelectFromModel
+import pandas as pd
+
+
+# Load the iris dataset
+cnv = pd.read_csv('./Data/brca_cnv_subtype.csv')
+dna = pd.read_csv('./Data/brca_meth_subtype.csv')
+rna = pd.read_csv('./Data/brca_rna_subtype.csv')
+
+# Create a list of feature names
+featureNames_cnv = cnv.columns
+featureNames_dnv = dna.columns
+featureNames_rna = rna.columns
+
+
+# Create X from the features
+cnv_values = cnv.iloc[:,1:-1].values
+dna_values = cnv.iloc[:,1:-1].values
+rna_values = cnv.iloc[:,1:-1].values
+
+
+# Create y from output
+cnv_labels = cnv.iloc[:,0].values
+dna_labels = dna.iloc[:,0].values
+rna_labels = rna.iloc[:,0].values
+
+
+X_train_cnv, X_test_cnv, y_train_cnv, y_test_cnv = train_test_split(cnv_values, cnv_labels, test_size=0.2, random_state=42)
+X_train_dna, X_test_dna, y_train_dna, y_test_dna = train_test_split(dna_values, cnv_labels, test_size=0.2, random_state=42)
+X_train_rna, X_test_rna, y_train_rna, y_test_rna = train_test_split(rna_values, cnv_labels, test_size=0.2, random_state=42)
+
+# Create a random forest classifier
+clf_cnv = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+clf_dna = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+clf_rna = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+
+# Train the classifier
+clf_cnv.fit(X_train_cnv, y_train_cnv)
+clf_dna.fit(X_train_dna, y_train_dna)
+clf_rna.fit(X_train_rna, y_train_rna)
+
+# Print the name and gini importance of each feature
+# for feature in zip(feat_labels, clf.feature_importances_):
+#     print(feature)
+
+# Create a selector object that will use the random forest classifier to identify
+# features that have an importance of more than 0.15
+sfm_cnv = SelectFromModel(clf_cnv, threshold=0.15)
+sfm_rna = SelectFromModel(clf_rna, threshold=0.15)
+sfm_dna = SelectFromModel(clf_dna, threshold=0.15)
+
+# Train the selector
+sfm_cnv.fit(X_train_cnv, y_train_cnv)
+sfm_dna.fit(X_train_dna, y_train_dna)
+sfm_rna.fit(X_train_rna, y_train_rna)
+
+# Print the names of the most important features
+# for feature_list_index in sfm.get_support(indices=True):
+#     print(feat_labels[feature_list_index])
+new_cnv_features = []
+mask = sfm_cnv.get_support()
+for bool, feature in zip(mask, cnv_labels):
+    if bool:
+        new_cnv_features.append(feature)
+
+new_dna_features = []
+mask = sfm_dna.get_support()
+for bool, feature in zip(mask, dna_labels):
+    if bool:
+        new_dna_features.append(feature)
+
+new_rna_features = []
+mask = sfm_rna.get_support()
+for bool, feature in zip(mask, rna_labels):
+    if bool:
+        new_rna_features.append(feature)
+
+
+
+# Transform the data to create a new dataset containing only the most important features
+# Note: We have to apply the transform to both the training X and test X data.
+#   new DATA
+X_cnv_important_train = sfm_cnv.transform(X_train_cnv)
+X_cnv_important_test = sfm_cnv.transform(X_test_cnv)
+
+X_dna_important_train = sfm_dna.transform(X_train_dna)
+X_dna_important_test = sfm_dna.transform(X_test_dna)
+
+
+X_rna_important_train = sfm_rna.transform(X_train_rna)
+X_rna_important_test = sfm_rna.transform(X_test_rna)
+
+
+# Create a new random forest classifier for the most important features
+clf_important_cnv = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+clf_important_dna = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+clf_important_rna = RandomForestClassifier(n_estimators=10, random_state=0, n_jobs=-1)
+
+# Train the new classifier on the new dataset containing the most important features
+clf_important_cnv.fit(X_cnv_important_train, y_train_cnv)
+clf_important_dna.fit(X_dna_important_train, y_train_dna)
+clf_important_rna.fit(X_rna_important_train, y_train_rna)
+
+
+# Apply The Full Featured Classifier To The Test Data
+y_pred_cnv = clf_cnv.predict(X_test_cnv)
+y_pred_dna = clf_cnv.predict(X_test_dna)
+y_pred_rna = clf_cnv.predict(X_test_rna)
+
+# View The Accuracy Of Our Full Feature (4 Features) Model
+from sklearn.metrics import classification_report
+
+print("cnv_Classic:\n",classification_report(y_test_cnv, y_pred_cnv,digits=4))
+print("dna_Classic:\n",classification_report(y_test_dna, y_pred_dna,digits=4))
+print("rna_Classic:\n",classification_report(y_test_rna, y_pred_rna,digits=4))
+
+# Apply The Full Featured Classifier To The Test Data
+y_important_pred_cnv = clf_important_cnv.predict(X_cnv_important_test)
+y_important_pred_dna = clf_important_dna.predict(X_dna_important_test)
+y_important_pred_rna = clf_important_rna.predict(X_rna_important_test)
+
+
+# View The Accuracy Of Our Limited Feature (2 Features) Model
+from sklearn.metrics import classification_report
+
+print("cnv_v2:\n",classification_report(y_test_cnv, y_important_pred_cnv,digits=4))
+print("dna_v2:\n",classification_report(y_test_dna, y_important_pred_dna,digits=4))
+print("rna_v2:\n",classification_report(y_test_rna, y_important_pred_rna,digits=4))
